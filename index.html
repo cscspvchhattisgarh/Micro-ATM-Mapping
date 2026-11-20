@@ -10,9 +10,12 @@
 
   <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden border border-slate-200">
     <!-- Header -->
-    <div class="bg-blue-700 text-white px-6 py-5">
-      <h1 class="text-2xl font-bold">CSC VLE & Micro ATM Mapping Form</h1>
-      <p class="text-blue-100 text-sm mt-1">Select Rural/Urban location mapping and enter verified Micro ATM details</p>
+    <div class="bg-blue-700 text-white px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+      <div>
+        <h1 class="text-2xl font-bold">CSC VLE & Micro ATM Mapping Form</h1>
+        <p class="text-blue-100 text-sm mt-1">Select Rural/Urban location mapping and enter verified Micro ATM details</p>
+      </div>
+      <div id="syncStatus" class="text-xs bg-blue-800 px-3 py-1.5 rounded-full text-blue-100 hidden"></div>
     </div>
 
     <!-- Loading Indicator -->
@@ -171,9 +174,9 @@
     let existingSerialSet = new Set();
     let currentDataset = [];
 
-    // DOM Elements
     const loader = document.getElementById('loader');
     const form = document.getElementById('vleForm');
+    const syncStatus = document.getElementById('syncStatus');
     const locTypeEl = document.getElementById('locationType');
     const distEl = document.getElementById('district');
     const blockEl = document.getElementById('block');
@@ -188,7 +191,6 @@
     const serialHint = document.getElementById('serialHint');
     const serialError = document.getElementById('serialError');
 
-    // 1. Fetch Mapping & Existing Records on Load
     window.addEventListener('DOMContentLoaded', async () => {
       try {
         const res = await fetch(SCRIPT_URL);
@@ -196,24 +198,29 @@
         rawData.rural = data.rural || [];
         rawData.urban = data.urban || [];
         
-        // Store existing records in Set for instant O(1) lookup
         existingCscSet = new Set((data.existingCscIds || []).map(id => String(id).trim()));
         existingSerialSet = new Set((data.existingSerials || []).map(sn => String(sn).trim().toUpperCase()));
 
+        syncStatus.textContent = `Rural: ${rawData.rural.length} | Urban: ${rawData.urban.length}`;
+        syncStatus.classList.remove('hidden');
+
         loader.classList.add('hidden');
         form.classList.remove('hidden');
+
+        if (rawData.rural.length === 0 && rawData.urban.length === 0) {
+          alert(`Warning: Google Sheet se 0 rows load hui hain! Sheet names check karein (Rural: ${data.ruralSheetFound}, Urban: ${data.urbanSheetFound})`);
+        }
       } catch (err) {
-        loader.innerHTML = `<span class="text-red-600">Error loading data. Check Script URL and Deployment permissions.</span>`;
+        loader.innerHTML = `<span class="text-red-600">Error loading data. Check Script URL and Deployment permissions (Who has access: Anyone).</span>`;
       }
     });
 
-    // Helper: Populate & Reset Dropdowns
     function populateSelect(selectEl, itemsMap, defaultText) {
       selectEl.innerHTML = `<option value="">${defaultText}</option>`;
       Array.from(itemsMap.keys()).sort().forEach(key => {
         const item = itemsMap.get(key);
         const opt = document.createElement('option');
-        opt.value = JSON.stringify({ name: item.name, code: item.code });
+        opt.value = JSON.stringify({ name: String(item.name).trim(), code: String(item.code).trim() });
         opt.textContent = `${item.name} (${item.code})`;
         selectEl.appendChild(opt);
       });
@@ -229,7 +236,6 @@
       selectEl.classList.remove('bg-white');
     }
 
-    // 2. Cascading Logic
     locTypeEl.addEventListener('change', () => {
       const type = locTypeEl.value;
       resetSelect(distEl, '-- Select District --');
@@ -250,7 +256,9 @@
 
       const districts = new Map();
       currentDataset.forEach(row => {
-        if (row[1]) districts.set(`${row[1]}_${row[2]}`, { name: row[1], code: row[2] });
+        const dName = String(row[1] || '').trim();
+        const dCode = String(row[2] || '').trim();
+        if (dName) districts.set(`${dName}_${dCode}`, { name: dName, code: dCode });
       });
       populateSelect(distEl, districts, '-- Select District --');
     });
@@ -264,8 +272,12 @@
       const selectedDist = JSON.parse(distEl.value);
       const blocks = new Map();
       currentDataset.forEach(row => {
-        if (row[1] == selectedDist.name && row[2] == selectedDist.code && row[3]) {
-          blocks.set(`${row[3]}_${row[4]}`, { name: row[3], code: row[4] });
+        const dName = String(row[1] || '').trim();
+        const dCode = String(row[2] || '').trim();
+        const bName = String(row[3] || '').trim();
+        const bCode = String(row[4] || '').trim();
+        if (dName === selectedDist.name && dCode === selectedDist.code && bName) {
+          blocks.set(`${bName}_${bCode}`, { name: bName, code: bCode });
         }
       });
       populateSelect(blockEl, blocks, '-- Select Block --');
@@ -280,8 +292,12 @@
       const selectedBlock = JSON.parse(blockEl.value);
       const gpCities = new Map();
       currentDataset.forEach(row => {
-        if (row[1] == selectedDist.name && row[3] == selectedBlock.name && row[5]) {
-          gpCities.set(`${row[5]}_${row[6]}`, { name: row[5], code: row[6] });
+        const dName = String(row[1] || '').trim();
+        const bName = String(row[3] || '').trim();
+        const gcName = String(row[5] || '').trim();
+        const gcCode = String(row[6] || '').trim();
+        if (dName === selectedDist.name && bName === selectedBlock.name && gcName) {
+          gpCities.set(`${gcName}_${gcCode}`, { name: gcName, code: gcCode });
         }
       });
       populateSelect(gpCityEl, gpCities, locTypeEl.value === 'Rural' ? '-- Select Gram Panchayat --' : '-- Select City --');
@@ -296,14 +312,18 @@
       const selectedGpCity = JSON.parse(gpCityEl.value);
       const villWards = new Map();
       currentDataset.forEach(row => {
-        if (row[1] == selectedDist.name && row[3] == selectedBlock.name && row[5] == selectedGpCity.name && row[7]) {
-          villWards.set(`${row[7]}_${row[8]}`, { name: row[7], code: row[8] });
+        const dName = String(row[1] || '').trim();
+        const bName = String(row[3] || '').trim();
+        const gcName = String(row[5] || '').trim();
+        const vwName = String(row[7] || '').trim();
+        const vwCode = String(row[8] || '').trim();
+        if (dName === selectedDist.name && bName === selectedBlock.name && gcName === selectedGpCity.name && vwName) {
+          villWards.set(`${vwName}_${vwCode}`, { name: vwName, code: vwCode });
         }
       });
       populateSelect(villWardEl, villWards, locTypeEl.value === 'Rural' ? '-- Select Village --' : '-- Select Ward --');
     });
 
-    // 3. Live CSC ID Duplicate Check
     function validateCscId() {
       const val = cscIdEl.value.trim();
       if (existingCscSet.has(val)) {
@@ -318,7 +338,6 @@
     }
     cscIdEl.addEventListener('input', validateCscId);
 
-    // 4. Micro ATM Model & Serial Validation (Format + Duplicate Check)
     modelEl.addEventListener('change', () => {
       const model = modelEl.value;
       serialEl.value = '';
@@ -357,7 +376,6 @@
       const val = serialEl.value.trim().toUpperCase();
       serialEl.value = val;
 
-      // Step A: Duplicate Check First
       if (existingSerialSet.has(val)) {
         serialError.textContent = `Duplicate Blocked: Serial Number (${val}) pehle se register ho chuka hai!`;
         serialError.classList.remove('hidden');
@@ -365,7 +383,6 @@
         return false;
       }
 
-      // Step B: Format Regex Check
       let isValid = false;
       let errMsg = '';
 
@@ -390,24 +407,12 @@
       }
       return isValid;
     }
-
     serialEl.addEventListener('input', validateSerialNumber);
 
-    // 5. Form Submission
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      const isCscOk = validateCscId();
-      const isSerialOk = validateSerialNumber();
-
-      if (!isCscOk) {
-        cscIdEl.focus();
-        return;
-      }
-      if (!isSerialOk) {
-        serialEl.focus();
-        return;
-      }
+      if (!validateCscId()) { cscIdEl.focus(); return; }
+      if (!validateSerialNumber()) { serialEl.focus(); return; }
 
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
@@ -452,10 +457,8 @@
 
         if (result.status === 'success') {
           alert('Data successfully saved in Google Sheet!');
-          // Local memory me bhi add karein taaki bina page refresh kiye turant dobara submit na ho
           existingCscSet.add(cleanCsc);
           existingSerialSet.add(cleanSerial);
-
           form.reset();
           resetSelect(distEl, '-- Select District --');
           resetSelect(blockEl, '-- Select Block --');
