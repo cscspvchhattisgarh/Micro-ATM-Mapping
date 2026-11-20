@@ -17,7 +17,7 @@
 
     <!-- Loading Indicator -->
     <div id="loader" class="p-8 text-center text-blue-600 font-semibold">
-      Loading Location Mapping Data from Server... Please wait.
+      Loading Location Mapping & Verification Data... Please wait.
     </div>
 
     <!-- Main Form -->
@@ -28,7 +28,6 @@
         <h2 class="text-lg font-semibold text-slate-800 border-b pb-2 mb-4">1. Location Mapping Details</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           
-          <!-- Location Type -->
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">Location Type *</label>
             <select id="locationType" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-blue-500">
@@ -38,7 +37,6 @@
             </select>
           </div>
 
-          <!-- District -->
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">District Name (Code) *</label>
             <select id="district" required disabled class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50">
@@ -46,7 +44,6 @@
             </select>
           </div>
 
-          <!-- Block -->
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">Block Name (Code) *</label>
             <select id="block" required disabled class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50">
@@ -54,7 +51,6 @@
             </select>
           </div>
 
-          <!-- GP or City -->
           <div>
             <label id="gpCityLabel" class="block text-sm font-medium text-slate-700 mb-1">Gram Panchayat / City (Code) *</label>
             <select id="gpOrCity" required disabled class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50">
@@ -62,7 +58,6 @@
             </select>
           </div>
 
-          <!-- Village or Ward -->
           <div class="md:col-span-2">
             <label id="villageWardLabel" class="block text-sm font-medium text-slate-700 mb-1">Village / Ward Name & Number (Code) *</label>
             <select id="villageOrWard" required disabled class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50">
@@ -81,7 +76,8 @@
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">CSC ID (12 Digits) *</label>
             <input type="text" id="cscId" maxlength="12" pattern="\d{12}" required placeholder="e.g. 657361150019"
-              class="w-full border border-slate-300 rounded-lg p-2.5 uppercase">
+              class="w-full border border-slate-300 rounded-lg p-2.5 font-mono">
+            <p id="cscError" class="text-xs text-red-600 font-semibold mt-1 hidden"></p>
           </div>
 
           <div>
@@ -168,9 +164,11 @@
 
   <script>
     // APNA GOOGLE APPS SCRIPT WEB APP URL YAHAN PASTE KAREIN
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0npGMaIZ_SOgnOPFrGpbTEmOu5Woc3KCwjJFleXbZwCvWLm1ATK_41qwliKmy-rIzFQ/exec";
+    const SCRIPT_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
 
     let rawData = { rural: [], urban: [] };
+    let existingCscSet = new Set();
+    let existingSerialSet = new Set();
     let currentDataset = [];
 
     // DOM Elements
@@ -183,16 +181,25 @@
     const villWardEl = document.getElementById('villageOrWard');
     const gpCityLabel = document.getElementById('gpCityLabel');
     const villWardLabel = document.getElementById('villageWardLabel');
+    const cscIdEl = document.getElementById('cscId');
+    const cscError = document.getElementById('cscError');
     const modelEl = document.getElementById('deviceModel');
     const serialEl = document.getElementById('serialNumber');
     const serialHint = document.getElementById('serialHint');
     const serialError = document.getElementById('serialError');
 
-    // 1. Fetch Mapping Data on Load
+    // 1. Fetch Mapping & Existing Records on Load
     window.addEventListener('DOMContentLoaded', async () => {
       try {
         const res = await fetch(SCRIPT_URL);
-        rawData = await res.json();
+        const data = await res.json();
+        rawData.rural = data.rural || [];
+        rawData.urban = data.urban || [];
+        
+        // Store existing records in Set for instant O(1) lookup
+        existingCscSet = new Set((data.existingCscIds || []).map(id => String(id).trim()));
+        existingSerialSet = new Set((data.existingSerials || []).map(sn => String(sn).trim().toUpperCase()));
+
         loader.classList.add('hidden');
         form.classList.remove('hidden');
       } catch (err) {
@@ -200,11 +207,10 @@
       }
     });
 
-    // Helper: Populate Dropdown with "Name (Code)" and store JSON in value
+    // Helper: Populate & Reset Dropdowns
     function populateSelect(selectEl, itemsMap, defaultText) {
       selectEl.innerHTML = `<option value="">${defaultText}</option>`;
-      const sortedKeys = Array.from(itemsMap.keys()).sort();
-      sortedKeys.forEach(key => {
+      Array.from(itemsMap.keys()).sort().forEach(key => {
         const item = itemsMap.get(key);
         const opt = document.createElement('option');
         opt.value = JSON.stringify({ name: item.name, code: item.code });
@@ -230,7 +236,6 @@
       resetSelect(blockEl, '-- Select Block --');
       resetSelect(gpCityEl, '-- Select --');
       resetSelect(villWardEl, '-- Select --');
-
       if (!type) return;
 
       if (type === 'Rural') {
@@ -243,7 +248,6 @@
         villWardLabel.textContent = 'Ward Name & Number (Code) *';
       }
 
-      // Column Indexes: 0:LocType, 1:DistName, 2:DistCode, 3:BlockName, 4:BlockCode, 5:GP/CityName, 6:GP/CityCode, 7:Vill/WardName, 8:Vill/WardCode
       const districts = new Map();
       currentDataset.forEach(row => {
         if (row[1]) districts.set(`${row[1]}_${row[2]}`, { name: row[1], code: row[2] });
@@ -275,7 +279,6 @@
       const selectedDist = JSON.parse(distEl.value);
       const selectedBlock = JSON.parse(blockEl.value);
       const gpCities = new Map();
-
       currentDataset.forEach(row => {
         if (row[1] == selectedDist.name && row[3] == selectedBlock.name && row[5]) {
           gpCities.set(`${row[5]}_${row[6]}`, { name: row[5], code: row[6] });
@@ -292,7 +295,6 @@
       const selectedBlock = JSON.parse(blockEl.value);
       const selectedGpCity = JSON.parse(gpCityEl.value);
       const villWards = new Map();
-
       currentDataset.forEach(row => {
         if (row[1] == selectedDist.name && row[3] == selectedBlock.name && row[5] == selectedGpCity.name && row[7]) {
           villWards.set(`${row[7]}_${row[8]}`, { name: row[7], code: row[8] });
@@ -301,11 +303,27 @@
       populateSelect(villWardEl, villWards, locTypeEl.value === 'Rural' ? '-- Select Village --' : '-- Select Ward --');
     });
 
-    // 3. Micro ATM Serial Number Validation Rules
+    // 3. Live CSC ID Duplicate Check
+    function validateCscId() {
+      const val = cscIdEl.value.trim();
+      if (existingCscSet.has(val)) {
+        cscError.textContent = `Duplicate Blocked: CSC ID (${val}) pehle se submit ho chuka hai!`;
+        cscError.classList.remove('hidden');
+        cscIdEl.classList.add('border-red-500', 'bg-red-50');
+        return false;
+      }
+      cscError.classList.add('hidden');
+      cscIdEl.classList.remove('border-red-500', 'bg-red-50');
+      return true;
+    }
+    cscIdEl.addEventListener('input', validateCscId);
+
+    // 4. Micro ATM Model & Serial Validation (Format + Duplicate Check)
     modelEl.addEventListener('change', () => {
       const model = modelEl.value;
       serialEl.value = '';
       serialError.classList.add('hidden');
+      serialEl.classList.remove('border-red-500', 'bg-red-50');
 
       if (!model) {
         serialEl.disabled = true;
@@ -339,51 +357,69 @@
       const val = serialEl.value.trim().toUpperCase();
       serialEl.value = val;
 
+      // Step A: Duplicate Check First
+      if (existingSerialSet.has(val)) {
+        serialError.textContent = `Duplicate Blocked: Serial Number (${val}) pehle se register ho chuka hai!`;
+        serialError.classList.remove('hidden');
+        serialEl.classList.add('border-red-500', 'bg-red-50');
+        return false;
+      }
+
+      // Step B: Format Regex Check
       let isValid = false;
       let errMsg = '';
 
       if (model === 'PAX-D180') {
-        // 1st: 1-9, 2nd: A-Z, 3rd-8th: 6 digits
-        const paxRegex = /^[1-9][A-Z][0-9]{6}$/;
-        isValid = paxRegex.test(val);
+        isValid = /^[1-9][A-Z][0-9]{6}$/.test(val);
         errMsg = 'Invalid PAX-D180 Serial! Must be 8 chars: 1st digit (1-9), 2nd letter (A-Z), followed by 6 digits.';
       } else if (model === 'MOREFUN-MP63') {
-        const mp63Regex = /^[0-9]{14}$/;
-        isValid = mp63Regex.test(val);
+        isValid = /^[0-9]{14}$/.test(val);
         errMsg = 'Invalid MOREFUN-MP63 Serial! Must be exactly 14 numeric digits.';
       } else if (model === 'EUREKA-Y50') {
-        const y50Regex = /^[0-9]{20}$/;
-        isValid = y50Regex.test(val);
+        isValid = /^[0-9]{20}$/.test(val);
         errMsg = 'Invalid EUREKA-Y50 Serial! Must be exactly 20 numeric digits.';
       }
 
       if (!isValid) {
         serialError.textContent = errMsg;
         serialError.classList.remove('hidden');
+        serialEl.classList.add('border-red-500', 'bg-red-50');
       } else {
         serialError.classList.add('hidden');
+        serialEl.classList.remove('border-red-500', 'bg-red-50');
       }
       return isValid;
     }
 
     serialEl.addEventListener('input', validateSerialNumber);
 
-    // 4. Form Submission
+    // 5. Form Submission
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!validateSerialNumber()) {
+
+      const isCscOk = validateCscId();
+      const isSerialOk = validateSerialNumber();
+
+      if (!isCscOk) {
+        cscIdEl.focus();
+        return;
+      }
+      if (!isSerialOk) {
         serialEl.focus();
         return;
       }
 
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Saving Data... Please wait';
+      submitBtn.textContent = 'Verifying & Saving Data... Please wait';
 
       const distObj = JSON.parse(distEl.value);
       const blockObj = JSON.parse(blockEl.value);
       const gpCityObj = JSON.parse(gpCityEl.value);
       const villWardObj = JSON.parse(villWardEl.value);
+
+      const cleanCsc = cscIdEl.value.trim();
+      const cleanSerial = serialEl.value.trim().toUpperCase();
 
       const payload = {
         locationType: locTypeEl.value,
@@ -395,7 +431,7 @@
         gpOrCityCode: gpCityObj.code,
         villageOrWardName: villWardObj.name,
         villageOrWardCode: villWardObj.code,
-        cscId: document.getElementById('cscId').value.trim(),
+        cscId: cleanCsc,
         firstName: document.getElementById('firstName').value.trim(),
         lastName: document.getElementById('lastName').value.trim(),
         mobile: document.getElementById('mobile').value.trim(),
@@ -404,7 +440,7 @@
         centerAddress: document.getElementById('centerAddress').value.trim(),
         pinCode: document.getElementById('pinCode').value.trim(),
         deviceModel: modelEl.value,
-        serialNumber: serialEl.value.trim().toUpperCase()
+        serialNumber: cleanSerial
       };
 
       try {
@@ -416,12 +452,27 @@
 
         if (result.status === 'success') {
           alert('Data successfully saved in Google Sheet!');
+          // Local memory me bhi add karein taaki bina page refresh kiye turant dobara submit na ho
+          existingCscSet.add(cleanCsc);
+          existingSerialSet.add(cleanSerial);
+
           form.reset();
           resetSelect(distEl, '-- Select District --');
           resetSelect(blockEl, '-- Select Block --');
           resetSelect(gpCityEl, '-- Select --');
           resetSelect(villWardEl, '-- Select --');
           serialEl.disabled = true;
+        } else if (result.status === 'duplicate') {
+          alert(result.message);
+          if (result.field === 'cscId') {
+            existingCscSet.add(cleanCsc);
+            validateCscId();
+            cscIdEl.focus();
+          } else if (result.field === 'serialNumber') {
+            existingSerialSet.add(cleanSerial);
+            validateSerialNumber();
+            serialEl.focus();
+          }
         } else {
           alert('Error: ' + result.message);
         }
