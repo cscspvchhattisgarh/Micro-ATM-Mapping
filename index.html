@@ -29,7 +29,7 @@
       </div>
     </div>
 
-    <!-- Loading Indicator (Sirf pehli baar jab cache khali ho tab dikhega) -->
+    <!-- Loading Indicator -->
     <div id="loader" class="p-8 text-center text-blue-600 font-semibold no-print">
       Loading Location Mapping & Verification Data... Please wait.
     </div>
@@ -64,28 +64,28 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">District Name (Code) *</label>
+            <label class="block text-sm font-medium text-slate-700 mb-1">District Name *</label>
             <select id="district" required disabled class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50">
               <option value="">-- Select District --</option>
             </select>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Block Name (Code) *</label>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Block Name *</label>
             <select id="block" required disabled class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50">
               <option value="">-- Select Block --</option>
             </select>
           </div>
 
           <div>
-            <label id="gpCityLabel" class="block text-sm font-medium text-slate-700 mb-1">Gram Panchayat / City (Code) *</label>
+            <label id="gpCityLabel" class="block text-sm font-medium text-slate-700 mb-1">Gram Panchayat / City *</label>
             <select id="gpOrCity" required disabled class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50">
               <option value="">-- Select --</option>
             </select>
           </div>
 
           <div class="md:col-span-2">
-            <label id="villageWardLabel" class="block text-sm font-medium text-slate-700 mb-1">Village / Ward Name & Number (Code) *</label>
+            <label id="villageWardLabel" class="block text-sm font-medium text-slate-700 mb-1">Village / Ward Name *</label>
             <select id="villageOrWard" required disabled class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50">
               <option value="">-- Select --</option>
             </select>
@@ -229,12 +229,13 @@
   <script>
     // APNA GOOGLE APPS SCRIPT WEB APP URL YAHAN PASTE KAREIN
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0npGMaIZ_SOgnOPFrGpbTEmOu5Woc3KCwjJFleXbZwCvWLm1ATK_41qwliKmy-rIzFQ/exec";
-    const CACHE_KEY = "matm_mapping_cache_v1";
+    const CACHE_KEY = "matm_mapping_cache_v3";
 
     let rawData = { rural: [], urban: [] };
     let existingCscSet = new Set();
     let existingSerialSet = new Set();
     let currentDataset = [];
+    let colOffset = 1;
     let gpsCoords = { lat: "", lng: "", accuracy: "" };
 
     const loader = document.getElementById('loader');
@@ -320,16 +321,13 @@
       loader.classList.add('hidden');
       form.classList.remove('hidden');
 
-      // Agar user ne pehle se CSC ID ya Serial type kar diya ho toh background sync ke baad re-validate karein
       if (cscIdEl.value.trim()) validateCscId();
       if (serialEl.value.trim()) validateSerialNumber();
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
-      // Turant GPS capture start karein
       captureGPS();
 
-      // Step A: Pehle LocalStorage Cache check karein (0ms instant load)
       let hasCache = false;
       try {
         const cachedStr = localStorage.getItem(CACHE_KEY);
@@ -340,24 +338,19 @@
             hasCache = true;
           }
         }
-      } catch (e) {
-        console.warn("Cache read skipped", e);
-      }
+      } catch (e) {}
 
-      // Step B: Background me Google Sheet se latest data fetch karke cache update karein
       try {
         const res = await fetch(SCRIPT_URL);
         const freshData = await res.json();
         applyDataToForm(freshData, false);
 
-        try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(freshData));
-        } catch (storageErr) {
-          console.warn("Storage quota full, skipping cache save");
-        }
-
-        if (rawData.rural.length === 0 && rawData.urban.length === 0) {
-          alert(`Warning: Google Sheet se 0 rows load hui hain! Sheet names check karein (Rural: ${freshData.ruralSheetFound}, Urban: ${freshData.urbanSheetFound})`);
+        if (freshData.rural.length > 0 || freshData.urban.length > 0) {
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(freshData));
+          } catch (storageErr) {}
+        } else {
+          alert(`Warning: Google Sheet se 0 rows load hui hain! Tabs found: ${(freshData.allAvailableTabs || []).join(', ')}`);
         }
       } catch (err) {
         if (!hasCache) {
@@ -368,15 +361,26 @@
       }
     });
 
+    // --- 3. ALPHABETICAL DROPDOWN POPULATION (ONLY NAME SHOWN, CODE HIDDEN IN VALUE) ---
     function populateSelect(selectEl, itemsMap, defaultText) {
       selectEl.innerHTML = `<option value="">${defaultText}</option>`;
-      Array.from(itemsMap.keys()).sort().forEach(key => {
-        const item = itemsMap.get(key);
+      
+      // Items ko strictly Name ke hisab se A-Z Alphabetical order me sort karein
+      const sortedItems = Array.from(itemsMap.values()).sort((a, b) =>
+        String(a.name).trim().localeCompare(String(b.name).trim(), undefined, { sensitivity: 'base', numeric: true })
+      );
+
+      sortedItems.forEach(item => {
+        const cleanName = String(item.name).trim();
+        const cleanCode = String(item.code).trim();
         const opt = document.createElement('option');
-        opt.value = JSON.stringify({ name: String(item.name).trim(), code: String(item.code).trim() });
-        opt.textContent = `${item.name} (${item.code})`;
+        // Backend ke liye Name aur Code dono JSON me save rahenge
+        opt.value = JSON.stringify({ name: cleanName, code: cleanCode });
+        // Dropdown UI me sirf Name dikhega
+        opt.textContent = cleanName;
         selectEl.appendChild(opt);
       });
+
       selectEl.disabled = false;
       selectEl.classList.remove('bg-slate-50');
       selectEl.classList.add('bg-white');
@@ -389,6 +393,14 @@
       selectEl.classList.remove('bg-white');
     }
 
+    function detectColumnOffset(dataset) {
+      if (!dataset || dataset.length === 0) return 1;
+      const sampleRow = dataset[0];
+      const col0IsText = isNaN(Number(sampleRow[0])) && String(sampleRow[0]).trim() !== "";
+      const col1IsCode = !isNaN(Number(sampleRow[1])) && String(sampleRow[1]).trim() !== "";
+      return (col0IsText && col1IsCode) ? 0 : 1;
+    }
+
     locTypeEl.addEventListener('change', () => {
       const type = locTypeEl.value;
       resetSelect(distEl, '-- Select District --');
@@ -399,18 +411,20 @@
 
       if (type === 'Rural') {
         currentDataset = rawData.rural;
-        gpCityLabel.textContent = 'Gram Panchayat Name (Code) *';
-        villWardLabel.textContent = 'Village Name (Code) *';
+        gpCityLabel.textContent = 'Gram Panchayat Name *';
+        villWardLabel.textContent = 'Village Name *';
       } else {
         currentDataset = rawData.urban;
-        gpCityLabel.textContent = 'City Name (Code) *';
-        villWardLabel.textContent = 'Ward Name & Number (Code) *';
+        gpCityLabel.textContent = 'City Name *';
+        villWardLabel.textContent = 'Ward Name & Number *';
       }
+
+      colOffset = detectColumnOffset(currentDataset);
 
       const districts = new Map();
       currentDataset.forEach(row => {
-        const dName = String(row[1] || '').trim();
-        const dCode = String(row[2] || '').trim();
+        const dName = String(row[colOffset] || '').trim();
+        const dCode = String(row[colOffset + 1] || '').trim();
         if (dName) districts.set(`${dName}_${dCode}`, { name: dName, code: dCode });
       });
       populateSelect(distEl, districts, '-- Select District --');
@@ -425,10 +439,10 @@
       const selectedDist = JSON.parse(distEl.value);
       const blocks = new Map();
       currentDataset.forEach(row => {
-        const dName = String(row[1] || '').trim();
-        const dCode = String(row[2] || '').trim();
-        const bName = String(row[3] || '').trim();
-        const bCode = String(row[4] || '').trim();
+        const dName = String(row[colOffset] || '').trim();
+        const dCode = String(row[colOffset + 1] || '').trim();
+        const bName = String(row[colOffset + 2] || '').trim();
+        const bCode = String(row[colOffset + 3] || '').trim();
         if (dName === selectedDist.name && dCode === selectedDist.code && bName) {
           blocks.set(`${bName}_${bCode}`, { name: bName, code: bCode });
         }
@@ -445,10 +459,10 @@
       const selectedBlock = JSON.parse(blockEl.value);
       const gpCities = new Map();
       currentDataset.forEach(row => {
-        const dName = String(row[1] || '').trim();
-        const bName = String(row[3] || '').trim();
-        const gcName = String(row[5] || '').trim();
-        const gcCode = String(row[6] || '').trim();
+        const dName = String(row[colOffset] || '').trim();
+        const bName = String(row[colOffset + 2] || '').trim();
+        const gcName = String(row[colOffset + 4] || '').trim();
+        const gcCode = String(row[colOffset + 5] || '').trim();
         if (dName === selectedDist.name && bName === selectedBlock.name && gcName) {
           gpCities.set(`${gcName}_${gcCode}`, { name: gcName, code: gcCode });
         }
@@ -465,11 +479,11 @@
       const selectedGpCity = JSON.parse(gpCityEl.value);
       const villWards = new Map();
       currentDataset.forEach(row => {
-        const dName = String(row[1] || '').trim();
-        const bName = String(row[3] || '').trim();
-        const gcName = String(row[5] || '').trim();
-        const vwName = String(row[7] || '').trim();
-        const vwCode = String(row[8] || '').trim();
+        const dName = String(row[colOffset] || '').trim();
+        const bName = String(row[colOffset + 2] || '').trim();
+        const gcName = String(row[colOffset + 4] || '').trim();
+        const vwName = String(row[colOffset + 6] || '').trim();
+        const vwCode = String(row[colOffset + 7] || '').trim();
         if (dName === selectedDist.name && bName === selectedBlock.name && gcName === selectedGpCity.name && vwName) {
           villWards.set(`${vwName}_${vwCode}`, { name: vwName, code: vwCode });
         }
@@ -643,10 +657,10 @@
 
       const rows = [
         ['Location Type', payload.locationType],
-        ['District (Code)', `${payload.districtName} (${payload.districtCode})`],
-        ['Block (Code)', `${payload.blockName} (${payload.blockCode})`],
-        [`${gpTitle} (Code)`, `${payload.gpOrCityName} (${payload.gpOrCityCode})`],
-        [`${vwTitle} (Code)`, `${payload.villageOrWardName} (${payload.villageOrWardCode})`],
+        ['District', `${payload.districtName} (${payload.districtCode})`],
+        ['Block', `${payload.blockName} (${payload.blockCode})`],
+        [gpTitle, `${payload.gpOrCityName} (${payload.gpOrCityCode})`],
+        [vwTitle, `${payload.villageOrWardName} (${payload.villageOrWardCode})`],
         ['Center GPS (Lat, Lng)', gpsDisplay],
         ['CSC ID', payload.cscId],
         ['VLE Full Name', `${payload.firstName} ${payload.lastName}`],
@@ -675,7 +689,6 @@
       if (!validateEmail()) { emailEl.focus(); return; }
       if (!validateSerialNumber()) { serialEl.focus(); return; }
 
-      // Agar GPS abhi tak capture nahi hua toh ek baar warn karke capture karne ka mauka dein
       if (!gpsCoords.lat || !gpsCoords.lng) {
         captureGPS();
         const proceedWithoutGps = confirm("GPS Location abhi capture nahi hui hai. Kya aap bina GPS ke submit karna chahte hain? (GPS allow karne ke liye Cancel dabayein)");
@@ -730,7 +743,6 @@
         const result = await response.json();
 
         if (result.status === 'success') {
-          // Local cache ko bhi update kar dein taaki naye CSC/Serial turant duplicate list me aa jayein
           try {
             const cachedStr = localStorage.getItem(CACHE_KEY);
             if (cachedStr) {
