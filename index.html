@@ -21,10 +21,15 @@
       <div>
         <h1 class="text-2xl font-bold">Micro ATM Mapping form</h1>
       </div>
-      <div id="syncStatus" class="text-xs bg-blue-800 px-3 py-1.5 rounded-full text-blue-100 hidden"></div>
+      <div class="flex flex-wrap items-center gap-2">
+        <div id="gpsBadge" class="text-xs bg-amber-500 text-slate-900 font-semibold px-3 py-1.5 rounded-full">
+          📍 Detecting GPS...
+        </div>
+        <div id="syncStatus" class="text-xs bg-blue-800 px-3 py-1.5 rounded-full text-blue-100 hidden"></div>
+      </div>
     </div>
 
-    <!-- Loading Indicator -->
+    <!-- Loading Indicator (Sirf pehli baar jab cache khali ho tab dikhega) -->
     <div id="loader" class="p-8 text-center text-blue-600 font-semibold no-print">
       Loading Location Mapping & Verification Data... Please wait.
     </div>
@@ -32,6 +37,18 @@
     <!-- Main Form -->
     <form id="vleForm" class="p-6 space-y-6 hidden no-print">
       
+      <!-- GPS Location Banner -->
+      <div id="gpsBanner" class="bg-slate-50 border border-slate-200 rounded-lg p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="text-xs text-slate-700">
+          <span class="font-bold text-slate-900">Center GPS Coordinates:</span>
+          <span id="gpsText" class="font-mono ml-1 text-blue-700">Fetching location...</span>
+        </div>
+        <button type="button" id="retryGpsBtn" onclick="captureGPS()"
+          class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded transition hidden">
+          📍 Enable / Refresh GPS
+        </button>
+      </div>
+
       <!-- Section 1: Location Mapping -->
       <div>
         <h2 class="text-lg font-semibold text-slate-800 border-b pb-2 mb-4">1. Location Mapping Details</h2>
@@ -125,3 +142,633 @@
             <label class="block text-sm font-medium text-slate-700 mb-1">Center Address *</label>
             <input type="text" id="centerAddress" required placeholder="FULL CENTER ADDRESS"
               class="w-full border border-slate-300 rounded-lg p-2.5 uppercase">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Pin Code (6 Digits) *</label>
+            <input type="text" id="pinCode" maxlength="6" inputmode="numeric" pattern="\d{6}" required placeholder="e.g. 492001"
+              class="w-full border border-slate-300 rounded-lg p-2.5">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Section 3: Micro ATM Details -->
+      <div>
+        <h2 class="text-lg font-semibold text-slate-800 border-b pb-2 mb-4">3. Micro ATM Device Details</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Micro ATM Device Name & Model *</label>
+            <select id="deviceModel" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
+              <option value="">-- Select Device Model --</option>
+              <option value="PAX-D180">PAX-D180</option>
+              <option value="MOREFUN-MP63">MOREFUN-MP63</option>
+              <option value="EUREKA-Y50">EUREKA-Y50</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Device Serial Number *</label>
+            <input type="text" id="serialNumber" required disabled placeholder="Select Model First"
+              class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50 uppercase font-mono">
+            <p id="serialHint" class="text-xs text-slate-500 mt-1">Select a device model to see serial number format.</p>
+            <p id="serialError" class="text-xs text-red-600 font-semibold mt-1 hidden"></p>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="pt-4">
+        <button type="submit" id="submitBtn"
+          class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-6 rounded-lg shadow transition">
+          Submit
+        </button>
+      </div>
+
+    </form>
+
+    <!-- Acknowledgment Receipt / Closed Screen (After Submit) -->
+    <div id="closedScreen" class="p-6 md:p-8 hidden">
+      <div class="text-center border-b border-slate-200 pb-6 mb-6">
+        <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold mb-3">
+          ✓
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800">Micro ATM Mapping Acknowledgment</h2>
+        <p class="text-sm text-slate-500 mt-1">Form successfully submit aur lock kar diya gaya hai.</p>
+        
+        <div class="mt-4 inline-block bg-blue-50 border border-blue-200 rounded-lg px-5 py-2.5">
+          <span class="text-xs uppercase tracking-wider text-blue-600 font-semibold block">Acknowledgment Number</span>
+          <span id="ackNumberDisplay" class="text-xl font-mono font-bold text-blue-900"></span>
+        </div>
+        <p id="ackTimestamp" class="text-xs text-slate-400 mt-2"></p>
+      </div>
+
+      <!-- Summary Table -->
+      <div class="space-y-4">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-600">Submitted Details Summary</h3>
+        <div class="overflow-hidden border border-slate-200 rounded-lg">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <tbody id="summaryTableBody" class="divide-y divide-slate-200 bg-white">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center no-print">
+        <button type="button" onclick="window.print()"
+          class="bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-6 rounded-lg shadow transition flex items-center justify-center gap-2">
+          <span>🖨️ Print / Save PDF Receipt</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // APNA GOOGLE APPS SCRIPT WEB APP URL YAHAN PASTE KAREIN
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0npGMaIZ_SOgnOPFrGpbTEmOu5Woc3KCwjJFleXbZwCvWLm1ATK_41qwliKmy-rIzFQ/exec";
+    const CACHE_KEY = "matm_mapping_cache_v1";
+
+    let rawData = { rural: [], urban: [] };
+    let existingCscSet = new Set();
+    let existingSerialSet = new Set();
+    let currentDataset = [];
+    let gpsCoords = { lat: "", lng: "", accuracy: "" };
+
+    const loader = document.getElementById('loader');
+    const form = document.getElementById('vleForm');
+    const closedScreen = document.getElementById('closedScreen');
+    const syncStatus = document.getElementById('syncStatus');
+    const gpsBadge = document.getElementById('gpsBadge');
+    const gpsText = document.getElementById('gpsText');
+    const retryGpsBtn = document.getElementById('retryGpsBtn');
+
+    const locTypeEl = document.getElementById('locationType');
+    const distEl = document.getElementById('district');
+    const blockEl = document.getElementById('block');
+    const gpCityEl = document.getElementById('gpOrCity');
+    const villWardEl = document.getElementById('villageOrWard');
+    const gpCityLabel = document.getElementById('gpCityLabel');
+    const villWardLabel = document.getElementById('villageWardLabel');
+    
+    const cscIdEl = document.getElementById('cscId');
+    const cscError = document.getElementById('cscError');
+    const firstNameEl = document.getElementById('firstName');
+    const lastNameEl = document.getElementById('lastName');
+    const mobileEl = document.getElementById('mobile');
+    const mobileError = document.getElementById('mobileError');
+    const emailEl = document.getElementById('email');
+    const emailError = document.getElementById('emailError');
+    const centerNameEl = document.getElementById('centerName');
+    const centerAddressEl = document.getElementById('centerAddress');
+    const pinCodeEl = document.getElementById('pinCode');
+
+    const modelEl = document.getElementById('deviceModel');
+    const serialEl = document.getElementById('serialNumber');
+    const serialHint = document.getElementById('serialHint');
+    const serialError = document.getElementById('serialError');
+
+    // --- 1. AUTO GPS CAPTURE ---
+    function captureGPS() {
+      if (!("geolocation" in navigator)) {
+        gpsBadge.textContent = "📍 GPS Not Supported";
+        gpsBadge.className = "text-xs bg-red-600 text-white font-semibold px-3 py-1.5 rounded-full";
+        gpsText.textContent = "Browser does not support GPS";
+        return;
+      }
+
+      gpsBadge.textContent = "📍 Capturing GPS...";
+      gpsBadge.className = "text-xs bg-amber-400 text-slate-900 font-semibold px-3 py-1.5 rounded-full";
+      gpsText.textContent = "Acquiring high-accuracy location...";
+      retryGpsBtn.classList.add('hidden');
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          gpsCoords.lat = pos.coords.latitude.toFixed(6);
+          gpsCoords.lng = pos.coords.longitude.toFixed(6);
+          gpsCoords.accuracy = Math.round(pos.coords.accuracy);
+
+          gpsBadge.textContent = "📍 GPS Locked";
+          gpsBadge.className = "text-xs bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-full";
+          gpsText.textContent = `${gpsCoords.lat}, ${gpsCoords.lng} (±${gpsCoords.accuracy}m)`;
+          retryGpsBtn.classList.remove('hidden');
+        },
+        (err) => {
+          gpsBadge.textContent = "📍 GPS Blocked";
+          gpsBadge.className = "text-xs bg-red-600 text-white font-semibold px-3 py-1.5 rounded-full";
+          gpsText.textContent = "Location permission denied. Please allow Location access.";
+          retryGpsBtn.classList.remove('hidden');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    // --- 2. INSTANT CACHE + BACKGROUND SYNC ---
+    function applyDataToForm(data, isFromCache = false) {
+      rawData.rural = data.rural || [];
+      rawData.urban = data.urban || [];
+      existingCscSet = new Set((data.existingCscIds || []).map(id => String(id).trim()));
+      existingSerialSet = new Set((data.existingSerials || []).map(sn => String(sn).trim().toUpperCase()));
+
+      syncStatus.textContent = isFromCache
+        ? `⚡ Instant Load (Syncing...)`
+        : `✓ Synced (R: ${rawData.rural.length} | U: ${rawData.urban.length})`;
+      syncStatus.classList.remove('hidden');
+
+      loader.classList.add('hidden');
+      form.classList.remove('hidden');
+
+      // Agar user ne pehle se CSC ID ya Serial type kar diya ho toh background sync ke baad re-validate karein
+      if (cscIdEl.value.trim()) validateCscId();
+      if (serialEl.value.trim()) validateSerialNumber();
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Turant GPS capture start karein
+      captureGPS();
+
+      // Step A: Pehle LocalStorage Cache check karein (0ms instant load)
+      let hasCache = false;
+      try {
+        const cachedStr = localStorage.getItem(CACHE_KEY);
+        if (cachedStr) {
+          const cachedData = JSON.parse(cachedStr);
+          if ((cachedData.rural && cachedData.rural.length > 0) || (cachedData.urban && cachedData.urban.length > 0)) {
+            applyDataToForm(cachedData, true);
+            hasCache = true;
+          }
+        }
+      } catch (e) {
+        console.warn("Cache read skipped", e);
+      }
+
+      // Step B: Background me Google Sheet se latest data fetch karke cache update karein
+      try {
+        const res = await fetch(SCRIPT_URL);
+        const freshData = await res.json();
+        applyDataToForm(freshData, false);
+
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(freshData));
+        } catch (storageErr) {
+          console.warn("Storage quota full, skipping cache save");
+        }
+
+        if (rawData.rural.length === 0 && rawData.urban.length === 0) {
+          alert(`Warning: Google Sheet se 0 rows load hui hain! Sheet names check karein (Rural: ${freshData.ruralSheetFound}, Urban: ${freshData.urbanSheetFound})`);
+        }
+      } catch (err) {
+        if (!hasCache) {
+          loader.innerHTML = `<span class="text-red-600">Error loading data. Check Script URL and Deployment permissions (Who has access: Anyone).</span>`;
+        } else {
+          syncStatus.textContent = "⚠ Offline Cache Mode";
+        }
+      }
+    });
+
+    function populateSelect(selectEl, itemsMap, defaultText) {
+      selectEl.innerHTML = `<option value="">${defaultText}</option>`;
+      Array.from(itemsMap.keys()).sort().forEach(key => {
+        const item = itemsMap.get(key);
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify({ name: String(item.name).trim(), code: String(item.code).trim() });
+        opt.textContent = `${item.name} (${item.code})`;
+        selectEl.appendChild(opt);
+      });
+      selectEl.disabled = false;
+      selectEl.classList.remove('bg-slate-50');
+      selectEl.classList.add('bg-white');
+    }
+
+    function resetSelect(selectEl, defaultText) {
+      selectEl.innerHTML = `<option value="">${defaultText}</option>`;
+      selectEl.disabled = true;
+      selectEl.classList.add('bg-slate-50');
+      selectEl.classList.remove('bg-white');
+    }
+
+    locTypeEl.addEventListener('change', () => {
+      const type = locTypeEl.value;
+      resetSelect(distEl, '-- Select District --');
+      resetSelect(blockEl, '-- Select Block --');
+      resetSelect(gpCityEl, '-- Select --');
+      resetSelect(villWardEl, '-- Select --');
+      if (!type) return;
+
+      if (type === 'Rural') {
+        currentDataset = rawData.rural;
+        gpCityLabel.textContent = 'Gram Panchayat Name (Code) *';
+        villWardLabel.textContent = 'Village Name (Code) *';
+      } else {
+        currentDataset = rawData.urban;
+        gpCityLabel.textContent = 'City Name (Code) *';
+        villWardLabel.textContent = 'Ward Name & Number (Code) *';
+      }
+
+      const districts = new Map();
+      currentDataset.forEach(row => {
+        const dName = String(row[1] || '').trim();
+        const dCode = String(row[2] || '').trim();
+        if (dName) districts.set(`${dName}_${dCode}`, { name: dName, code: dCode });
+      });
+      populateSelect(distEl, districts, '-- Select District --');
+    });
+
+    distEl.addEventListener('change', () => {
+      resetSelect(blockEl, '-- Select Block --');
+      resetSelect(gpCityEl, '-- Select --');
+      resetSelect(villWardEl, '-- Select --');
+      if (!distEl.value) return;
+
+      const selectedDist = JSON.parse(distEl.value);
+      const blocks = new Map();
+      currentDataset.forEach(row => {
+        const dName = String(row[1] || '').trim();
+        const dCode = String(row[2] || '').trim();
+        const bName = String(row[3] || '').trim();
+        const bCode = String(row[4] || '').trim();
+        if (dName === selectedDist.name && dCode === selectedDist.code && bName) {
+          blocks.set(`${bName}_${bCode}`, { name: bName, code: bCode });
+        }
+      });
+      populateSelect(blockEl, blocks, '-- Select Block --');
+    });
+
+    blockEl.addEventListener('change', () => {
+      resetSelect(gpCityEl, '-- Select --');
+      resetSelect(villWardEl, '-- Select --');
+      if (!blockEl.value) return;
+
+      const selectedDist = JSON.parse(distEl.value);
+      const selectedBlock = JSON.parse(blockEl.value);
+      const gpCities = new Map();
+      currentDataset.forEach(row => {
+        const dName = String(row[1] || '').trim();
+        const bName = String(row[3] || '').trim();
+        const gcName = String(row[5] || '').trim();
+        const gcCode = String(row[6] || '').trim();
+        if (dName === selectedDist.name && bName === selectedBlock.name && gcName) {
+          gpCities.set(`${gcName}_${gcCode}`, { name: gcName, code: gcCode });
+        }
+      });
+      populateSelect(gpCityEl, gpCities, locTypeEl.value === 'Rural' ? '-- Select Gram Panchayat --' : '-- Select City --');
+    });
+
+    gpCityEl.addEventListener('change', () => {
+      resetSelect(villWardEl, '-- Select --');
+      if (!gpCityEl.value) return;
+
+      const selectedDist = JSON.parse(distEl.value);
+      const selectedBlock = JSON.parse(blockEl.value);
+      const selectedGpCity = JSON.parse(gpCityEl.value);
+      const villWards = new Map();
+      currentDataset.forEach(row => {
+        const dName = String(row[1] || '').trim();
+        const bName = String(row[3] || '').trim();
+        const gcName = String(row[5] || '').trim();
+        const vwName = String(row[7] || '').trim();
+        const vwCode = String(row[8] || '').trim();
+        if (dName === selectedDist.name && bName === selectedBlock.name && gcName === selectedGpCity.name && vwName) {
+          villWards.set(`${vwName}_${vwCode}`, { name: vwName, code: vwCode });
+        }
+      });
+      populateSelect(villWardEl, villWards, locTypeEl.value === 'Rural' ? '-- Select Village --' : '-- Select Ward --');
+    });
+
+    // --- INPUT RESTRICTIONS & VALIDATIONS ---
+
+    function validateCscId() {
+      cscIdEl.value = cscIdEl.value.replace(/\D/g, '');
+      const val = cscIdEl.value;
+
+      if (existingCscSet.has(val)) {
+        cscError.textContent = `Duplicate Blocked: CSC ID (${val}) pehle se submit ho chuka hai!`;
+        cscError.classList.remove('hidden');
+        cscIdEl.classList.add('border-red-500', 'bg-red-50');
+        return false;
+      }
+
+      const cscRegex = /^\d{8}001\d$/;
+      if (val.length > 0 && !cscRegex.test(val)) {
+        cscError.textContent = 'Invalid CSC ID! 12 digits hona chahiye jisme 9th & 10th digit "00" aur 11th digit "1" ho (e.g. XXXXXXXX001X).';
+        cscError.classList.remove('hidden');
+        cscIdEl.classList.add('border-red-500', 'bg-red-50');
+        return false;
+      }
+
+      cscError.classList.add('hidden');
+      cscIdEl.classList.remove('border-red-500', 'bg-red-50');
+      return val.length === 12;
+    }
+    cscIdEl.addEventListener('input', validateCscId);
+
+    [firstNameEl, lastNameEl, centerNameEl].forEach(el => {
+      el.addEventListener('input', () => {
+        el.value = el.value.toUpperCase();
+      });
+    });
+
+    centerAddressEl.addEventListener('input', () => {
+      centerAddressEl.value = centerAddressEl.value.toUpperCase().replace(/[^A-Z0-9\s]/g, '');
+    });
+
+    function validateMobile() {
+      mobileEl.value = mobileEl.value.replace(/\D/g, '');
+      const val = mobileEl.value;
+      if (val.length > 0 && !/^[6-9]\d{9}$/.test(val)) {
+        mobileError.textContent = '10-digit valid mobile number enter karein (6-9 se start hona chahiye).';
+        mobileError.classList.remove('hidden');
+        mobileEl.classList.add('border-red-500', 'bg-red-50');
+        return false;
+      }
+      mobileError.classList.add('hidden');
+      mobileEl.classList.remove('border-red-500', 'bg-red-50');
+      return val.length === 10;
+    }
+    mobileEl.addEventListener('input', validateMobile);
+
+    function validateEmail() {
+      const val = emailEl.value.trim();
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (val.length > 0 && !emailRegex.test(val)) {
+        emailError.textContent = 'Valid Email ID enter karein (e.g. name@domain.com).';
+        emailError.classList.remove('hidden');
+        emailEl.classList.add('border-red-500', 'bg-red-50');
+        return false;
+      }
+      emailError.classList.add('hidden');
+      emailEl.classList.remove('border-red-500', 'bg-red-50');
+      return emailRegex.test(val);
+    }
+    emailEl.addEventListener('input', validateEmail);
+
+    pinCodeEl.addEventListener('input', () => {
+      pinCodeEl.value = pinCodeEl.value.replace(/\D/g, '');
+    });
+
+    modelEl.addEventListener('change', () => {
+      const model = modelEl.value;
+      serialEl.value = '';
+      serialError.classList.add('hidden');
+      serialEl.classList.remove('border-red-500', 'bg-red-50');
+
+      if (!model) {
+        serialEl.disabled = true;
+        serialEl.classList.add('bg-slate-50');
+        serialEl.placeholder = 'Select Model First';
+        serialHint.textContent = 'Select a device model to see serial number format.';
+        return;
+      }
+
+      serialEl.disabled = false;
+      serialEl.classList.remove('bg-slate-50');
+      serialEl.classList.add('bg-white');
+
+      if (model === 'PAX-D180') {
+        serialEl.maxLength = 8;
+        serialEl.placeholder = 'e.g. 1A234567';
+        serialHint.textContent = 'Rule: 8 chars -> 1st digit (1-9), 2nd Alphabet (A-Z), 3rd to 8th digits (0-9).';
+      } else if (model === 'MOREFUN-MP63') {
+        serialEl.maxLength = 14;
+        serialEl.placeholder = '14 Digits Only';
+        serialHint.textContent = 'Rule: Exactly 14 numeric digits only.';
+      } else if (model === 'EUREKA-Y50') {
+        serialEl.maxLength = 20;
+        serialEl.placeholder = '20 Digits Only';
+        serialHint.textContent = 'Rule: Exactly 20 numeric digits only.';
+      }
+    });
+
+    function validateSerialNumber() {
+      const model = modelEl.value;
+      serialEl.value = serialEl.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const val = serialEl.value;
+
+      if (existingSerialSet.has(val)) {
+        serialError.textContent = `Duplicate Blocked: Serial Number (${val}) pehle se register ho chuka hai!`;
+        serialError.classList.remove('hidden');
+        serialEl.classList.add('border-red-500', 'bg-red-50');
+        return false;
+      }
+
+      let isValid = false;
+      let errMsg = '';
+
+      if (model === 'PAX-D180') {
+        isValid = /^[1-9][A-Z][0-9]{6}$/.test(val);
+        errMsg = 'Invalid PAX-D180 Serial! Must be 8 chars: 1st digit (1-9), 2nd letter (A-Z), followed by 6 digits.';
+      } else if (model === 'MOREFUN-MP63') {
+        isValid = /^[0-9]{14}$/.test(val);
+        errMsg = 'Invalid MOREFUN-MP63 Serial! Must be exactly 14 numeric digits.';
+      } else if (model === 'EUREKA-Y50') {
+        isValid = /^[0-9]{20}$/.test(val);
+        errMsg = 'Invalid EUREKA-Y50 Serial! Must be exactly 20 numeric digits.';
+      }
+
+      if (!isValid) {
+        serialError.textContent = errMsg;
+        serialError.classList.remove('hidden');
+        serialEl.classList.add('border-red-500', 'bg-red-50');
+      } else {
+        serialError.classList.add('hidden');
+        serialEl.classList.remove('border-red-500', 'bg-red-50');
+      }
+      return isValid;
+    }
+    serialEl.addEventListener('input', validateSerialNumber);
+
+    // Unique Acknowledgment ID Generator
+    function generateAckNumber(cscId) {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const last4Csc = cscId.slice(-4);
+      const rand4 = Math.floor(1000 + Math.random() * 9000);
+      return `MATM-${yyyy}${mm}${dd}-${last4Csc}-${rand4}`;
+    }
+
+    // Summary Table Render Function
+    function renderAcknowledgmentSummary(ackNo, payload) {
+      document.getElementById('ackNumberDisplay').textContent = ackNo;
+      document.getElementById('ackTimestamp').textContent = `Submitted on: ${new Date().toLocaleString('en-IN')}`;
+
+      const gpTitle = payload.locationType === 'Rural' ? 'Gram Panchayat' : 'City';
+      const vwTitle = payload.locationType === 'Rural' ? 'Village' : 'Ward';
+      const gpsDisplay = payload.latitude && payload.longitude
+        ? `${payload.latitude}, ${payload.longitude}`
+        : 'Not Captured';
+
+      const rows = [
+        ['Location Type', payload.locationType],
+        ['District (Code)', `${payload.districtName} (${payload.districtCode})`],
+        ['Block (Code)', `${payload.blockName} (${payload.blockCode})`],
+        [`${gpTitle} (Code)`, `${payload.gpOrCityName} (${payload.gpOrCityCode})`],
+        [`${vwTitle} (Code)`, `${payload.villageOrWardName} (${payload.villageOrWardCode})`],
+        ['Center GPS (Lat, Lng)', gpsDisplay],
+        ['CSC ID', payload.cscId],
+        ['VLE Full Name', `${payload.firstName} ${payload.lastName}`],
+        ['Mobile Number', payload.mobile],
+        ['Email ID', payload.email],
+        ['CSC Center Name', payload.centerName],
+        ['Center Address', `${payload.centerAddress} - ${payload.pinCode}`],
+        ['Micro ATM Device Model', payload.deviceModel],
+        ['Device Serial Number', payload.serialNumber]
+      ];
+
+      const tbody = document.getElementById('summaryTableBody');
+      tbody.innerHTML = rows.map(([label, value]) => `
+        <tr>
+          <td class="px-4 py-2.5 font-medium text-slate-600 bg-slate-50 w-1/3">${label}</td>
+          <td class="px-4 py-2.5 font-semibold text-slate-900 font-mono">${value}</td>
+        </tr>
+      `).join('');
+    }
+
+    // --- FORM SUBMIT ---
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!validateCscId()) { cscIdEl.focus(); return; }
+      if (!validateMobile()) { mobileEl.focus(); return; }
+      if (!validateEmail()) { emailEl.focus(); return; }
+      if (!validateSerialNumber()) { serialEl.focus(); return; }
+
+      // Agar GPS abhi tak capture nahi hua toh ek baar warn karke capture karne ka mauka dein
+      if (!gpsCoords.lat || !gpsCoords.lng) {
+        captureGPS();
+        const proceedWithoutGps = confirm("GPS Location abhi capture nahi hui hai. Kya aap bina GPS ke submit karna chahte hain? (GPS allow karne ke liye Cancel dabayein)");
+        if (!proceedWithoutGps) return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Verifying & Saving Data... Please wait';
+
+      const distObj = JSON.parse(distEl.value);
+      const blockObj = JSON.parse(blockEl.value);
+      const gpCityObj = JSON.parse(gpCityEl.value);
+      const villWardObj = JSON.parse(villWardEl.value);
+
+      const cleanCsc = cscIdEl.value.trim();
+      const cleanSerial = serialEl.value.trim().toUpperCase();
+      const ackNumber = generateAckNumber(cleanCsc);
+
+      const payload = {
+        ackNumber: ackNumber,
+        locationType: locTypeEl.value,
+        districtName: distObj.name,
+        districtCode: distObj.code,
+        blockName: blockObj.name,
+        blockCode: blockObj.code,
+        gpOrCityName: gpCityObj.name,
+        gpOrCityCode: gpCityObj.code,
+        villageOrWardName: villWardObj.name,
+        villageOrWardCode: villWardObj.code,
+        latitude: gpsCoords.lat,
+        longitude: gpsCoords.lng,
+        gpsAccuracy: gpsCoords.accuracy,
+        googleMapsLink: gpsCoords.lat ? `https://maps.google.com/?q=${gpsCoords.lat},${gpsCoords.lng}` : "",
+        cscId: cleanCsc,
+        firstName: firstNameEl.value.trim().toUpperCase(),
+        lastName: lastNameEl.value.trim().toUpperCase(),
+        mobile: mobileEl.value.trim(),
+        email: emailEl.value.trim(),
+        centerName: centerNameEl.value.trim().toUpperCase(),
+        centerAddress: centerAddressEl.value.trim().toUpperCase(),
+        pinCode: pinCodeEl.value.trim(),
+        deviceModel: modelEl.value,
+        serialNumber: cleanSerial
+      };
+
+      try {
+        const response = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+          // Local cache ko bhi update kar dein taaki naye CSC/Serial turant duplicate list me aa jayein
+          try {
+            const cachedStr = localStorage.getItem(CACHE_KEY);
+            if (cachedStr) {
+              const cachedObj = JSON.parse(cachedStr);
+              cachedObj.existingCscIds = [...(cachedObj.existingCscIds || []), cleanCsc];
+              cachedObj.existingSerials = [...(cachedObj.existingSerials || []), cleanSerial];
+              localStorage.setItem(CACHE_KEY, JSON.stringify(cachedObj));
+            }
+          } catch (e) {}
+
+          renderAcknowledgmentSummary(ackNumber, payload);
+          form.classList.add('hidden');
+          closedScreen.classList.remove('hidden');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (result.status === 'duplicate') {
+          alert(result.message);
+          if (result.field === 'cscId') {
+            existingCscSet.add(cleanCsc);
+            validateCscId();
+            cscIdEl.focus();
+          } else if (result.field === 'serialNumber') {
+            existingSerialSet.add(cleanSerial);
+            validateSerialNumber();
+            serialEl.focus();
+          }
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit';
+        } else {
+          alert('Error: ' + result.message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit';
+        }
+      } catch (err) {
+        alert('Submission failed! Please check your internet connection.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit';
+      }
+    });
+  </script>
+</body>
+</html>
