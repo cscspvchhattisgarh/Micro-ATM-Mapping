@@ -3,28 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VLE Micro ATM & Location Mapping Portal</title>
+  <title>Micro ATM Mapping form</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media print {
+      body { background-color: white !important; padding: 0 !important; }
+      .no-print { display: none !important; }
+      #closedScreen { border: none !important; box-shadow: none !important; padding: 0 !important; }
+    }
+  </style>
 </head>
 <body class="bg-slate-100 min-h-screen py-8 px-4">
 
   <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden border border-slate-200">
     <!-- Header -->
-    <div class="bg-blue-700 text-white px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+    <div class="bg-blue-700 text-white px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-2 no-print">
       <div>
-        <h1 class="text-2xl font-bold">CSC VLE & Micro ATM Mapping Form</h1>
-        <p class="text-blue-100 text-sm mt-1">Select Rural/Urban location mapping and enter verified Micro ATM details</p>
+        <h1 class="text-2xl font-bold">Micro ATM Mapping form</h1>
       </div>
       <div id="syncStatus" class="text-xs bg-blue-800 px-3 py-1.5 rounded-full text-blue-100 hidden"></div>
     </div>
 
     <!-- Loading Indicator -->
-    <div id="loader" class="p-8 text-center text-blue-600 font-semibold">
+    <div id="loader" class="p-8 text-center text-blue-600 font-semibold no-print">
       Loading Location Mapping & Verification Data... Please wait.
     </div>
 
     <!-- Main Form -->
-    <form id="vleForm" class="p-6 space-y-6 hidden">
+    <form id="vleForm" class="p-6 space-y-6 hidden no-print">
       
       <!-- Section 1: Location Mapping -->
       <div>
@@ -78,414 +84,44 @@
           
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">CSC ID (12 Digits) *</label>
-            <input type="text" id="cscId" maxlength="12" pattern="\d{12}" required placeholder="e.g. 657361150019"
+            <input type="text" id="cscId" maxlength="12" inputmode="numeric" required placeholder="e.g. 657361150019"
               class="w-full border border-slate-300 rounded-lg p-2.5 font-mono">
             <p id="cscError" class="text-xs text-red-600 font-semibold mt-1 hidden"></p>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">VLE First Name *</label>
-            <input type="text" id="firstName" required placeholder="First Name"
-              class="w-full border border-slate-300 rounded-lg p-2.5">
+            <input type="text" id="firstName" required placeholder="FIRST NAME"
+              class="w-full border border-slate-300 rounded-lg p-2.5 uppercase">
           </div>
 
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">VLE Last Name *</label>
-            <input type="text" id="lastName" required placeholder="Last Name"
-              class="w-full border border-slate-300 rounded-lg p-2.5">
+            <input type="text" id="lastName" required placeholder="LAST NAME"
+              class="w-full border border-slate-300 rounded-lg p-2.5 uppercase">
           </div>
 
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">VLE Mobile Number *</label>
-            <input type="tel" id="mobile" maxlength="10" pattern="[6-9]\d{9}" required placeholder="10-digit Mobile"
+            <input type="tel" id="mobile" maxlength="10" inputmode="numeric" pattern="[6-9]\d{9}" required placeholder="10-digit Mobile"
               class="w-full border border-slate-300 rounded-lg p-2.5">
+            <p id="mobileError" class="text-xs text-red-600 font-semibold mt-1 hidden"></p>
           </div>
 
           <div class="md:col-span-2">
             <label class="block text-sm font-medium text-slate-700 mb-1">VLE Mail ID *</label>
             <input type="email" id="email" required placeholder="example@gmail.com"
               class="w-full border border-slate-300 rounded-lg p-2.5">
+            <p id="emailError" class="text-xs text-red-600 font-semibold mt-1 hidden"></p>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">Center Name *</label>
-            <input type="text" id="centerName" required placeholder="CSC Center Name"
-              class="w-full border border-slate-300 rounded-lg p-2.5">
+            <input type="text" id="centerName" required placeholder="CSC CENTER NAME"
+              class="w-full border border-slate-300 rounded-lg p-2.5 uppercase">
           </div>
 
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">Center Address *</label>
-            <input type="text" id="centerAddress" required placeholder="Full Center Address"
-              class="w-full border border-slate-300 rounded-lg p-2.5">
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Pin Code (6 Digits) *</label>
-            <input type="text" id="pinCode" maxlength="6" pattern="\d{6}" required placeholder="e.g. 492001"
-              class="w-full border border-slate-300 rounded-lg p-2.5">
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Section 3: Micro ATM Details -->
-      <div>
-        <h2 class="text-lg font-semibold text-slate-800 border-b pb-2 mb-4">3. Micro ATM Device Details</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Micro ATM Device Name & Model *</label>
-            <select id="deviceModel" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
-              <option value="">-- Select Device Model --</option>
-              <option value="PAX-D180">PAX-D180</option>
-              <option value="MOREFUN-MP63">MOREFUN-MP63</option>
-              <option value="EUREKA-Y50">EUREKA-Y50</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Device Serial Number *</label>
-            <input type="text" id="serialNumber" required disabled placeholder="Select Model First"
-              class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50 uppercase font-mono">
-            <p id="serialHint" class="text-xs text-slate-500 mt-1">Select a device model to see serial number format.</p>
-            <p id="serialError" class="text-xs text-red-600 font-semibold mt-1 hidden"></p>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Submit Button -->
-      <div class="pt-4">
-        <button type="submit" id="submitBtn"
-          class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-6 rounded-lg shadow transition">
-          Submit VLE & Device Mapping
-        </button>
-      </div>
-
-    </form>
-  </div>
-
-  <script>
-    // APNA GOOGLE APPS SCRIPT WEB APP URL YAHAN PASTE KAREIN
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0npGMaIZ_SOgnOPFrGpbTEmOu5Woc3KCwjJFleXbZwCvWLm1ATK_41qwliKmy-rIzFQ/exec";
-
-    let rawData = { rural: [], urban: [] };
-    let existingCscSet = new Set();
-    let existingSerialSet = new Set();
-    let currentDataset = [];
-
-    const loader = document.getElementById('loader');
-    const form = document.getElementById('vleForm');
-    const syncStatus = document.getElementById('syncStatus');
-    const locTypeEl = document.getElementById('locationType');
-    const distEl = document.getElementById('district');
-    const blockEl = document.getElementById('block');
-    const gpCityEl = document.getElementById('gpOrCity');
-    const villWardEl = document.getElementById('villageOrWard');
-    const gpCityLabel = document.getElementById('gpCityLabel');
-    const villWardLabel = document.getElementById('villageWardLabel');
-    const cscIdEl = document.getElementById('cscId');
-    const cscError = document.getElementById('cscError');
-    const modelEl = document.getElementById('deviceModel');
-    const serialEl = document.getElementById('serialNumber');
-    const serialHint = document.getElementById('serialHint');
-    const serialError = document.getElementById('serialError');
-
-    window.addEventListener('DOMContentLoaded', async () => {
-      try {
-        const res = await fetch(SCRIPT_URL);
-        const data = await res.json();
-        rawData.rural = data.rural || [];
-        rawData.urban = data.urban || [];
-        
-        existingCscSet = new Set((data.existingCscIds || []).map(id => String(id).trim()));
-        existingSerialSet = new Set((data.existingSerials || []).map(sn => String(sn).trim().toUpperCase()));
-
-        syncStatus.textContent = `Rural: ${rawData.rural.length} | Urban: ${rawData.urban.length}`;
-        syncStatus.classList.remove('hidden');
-
-        loader.classList.add('hidden');
-        form.classList.remove('hidden');
-
-        if (rawData.rural.length === 0 && rawData.urban.length === 0) {
-          alert(`Warning: Google Sheet se 0 rows load hui hain! Sheet names check karein (Rural: ${data.ruralSheetFound}, Urban: ${data.urbanSheetFound})`);
-        }
-      } catch (err) {
-        loader.innerHTML = `<span class="text-red-600">Error loading data. Check Script URL and Deployment permissions (Who has access: Anyone).</span>`;
-      }
-    });
-
-    function populateSelect(selectEl, itemsMap, defaultText) {
-      selectEl.innerHTML = `<option value="">${defaultText}</option>`;
-      Array.from(itemsMap.keys()).sort().forEach(key => {
-        const item = itemsMap.get(key);
-        const opt = document.createElement('option');
-        opt.value = JSON.stringify({ name: String(item.name).trim(), code: String(item.code).trim() });
-        opt.textContent = `${item.name} (${item.code})`;
-        selectEl.appendChild(opt);
-      });
-      selectEl.disabled = false;
-      selectEl.classList.remove('bg-slate-50');
-      selectEl.classList.add('bg-white');
-    }
-
-    function resetSelect(selectEl, defaultText) {
-      selectEl.innerHTML = `<option value="">${defaultText}</option>`;
-      selectEl.disabled = true;
-      selectEl.classList.add('bg-slate-50');
-      selectEl.classList.remove('bg-white');
-    }
-
-    locTypeEl.addEventListener('change', () => {
-      const type = locTypeEl.value;
-      resetSelect(distEl, '-- Select District --');
-      resetSelect(blockEl, '-- Select Block --');
-      resetSelect(gpCityEl, '-- Select --');
-      resetSelect(villWardEl, '-- Select --');
-      if (!type) return;
-
-      if (type === 'Rural') {
-        currentDataset = rawData.rural;
-        gpCityLabel.textContent = 'Gram Panchayat Name (Code) *';
-        villWardLabel.textContent = 'Village Name (Code) *';
-      } else {
-        currentDataset = rawData.urban;
-        gpCityLabel.textContent = 'City Name (Code) *';
-        villWardLabel.textContent = 'Ward Name & Number (Code) *';
-      }
-
-      const districts = new Map();
-      currentDataset.forEach(row => {
-        const dName = String(row[1] || '').trim();
-        const dCode = String(row[2] || '').trim();
-        if (dName) districts.set(`${dName}_${dCode}`, { name: dName, code: dCode });
-      });
-      populateSelect(distEl, districts, '-- Select District --');
-    });
-
-    distEl.addEventListener('change', () => {
-      resetSelect(blockEl, '-- Select Block --');
-      resetSelect(gpCityEl, '-- Select --');
-      resetSelect(villWardEl, '-- Select --');
-      if (!distEl.value) return;
-
-      const selectedDist = JSON.parse(distEl.value);
-      const blocks = new Map();
-      currentDataset.forEach(row => {
-        const dName = String(row[1] || '').trim();
-        const dCode = String(row[2] || '').trim();
-        const bName = String(row[3] || '').trim();
-        const bCode = String(row[4] || '').trim();
-        if (dName === selectedDist.name && dCode === selectedDist.code && bName) {
-          blocks.set(`${bName}_${bCode}`, { name: bName, code: bCode });
-        }
-      });
-      populateSelect(blockEl, blocks, '-- Select Block --');
-    });
-
-    blockEl.addEventListener('change', () => {
-      resetSelect(gpCityEl, '-- Select --');
-      resetSelect(villWardEl, '-- Select --');
-      if (!blockEl.value) return;
-
-      const selectedDist = JSON.parse(distEl.value);
-      const selectedBlock = JSON.parse(blockEl.value);
-      const gpCities = new Map();
-      currentDataset.forEach(row => {
-        const dName = String(row[1] || '').trim();
-        const bName = String(row[3] || '').trim();
-        const gcName = String(row[5] || '').trim();
-        const gcCode = String(row[6] || '').trim();
-        if (dName === selectedDist.name && bName === selectedBlock.name && gcName) {
-          gpCities.set(`${gcName}_${gcCode}`, { name: gcName, code: gcCode });
-        }
-      });
-      populateSelect(gpCityEl, gpCities, locTypeEl.value === 'Rural' ? '-- Select Gram Panchayat --' : '-- Select City --');
-    });
-
-    gpCityEl.addEventListener('change', () => {
-      resetSelect(villWardEl, '-- Select --');
-      if (!gpCityEl.value) return;
-
-      const selectedDist = JSON.parse(distEl.value);
-      const selectedBlock = JSON.parse(blockEl.value);
-      const selectedGpCity = JSON.parse(gpCityEl.value);
-      const villWards = new Map();
-      currentDataset.forEach(row => {
-        const dName = String(row[1] || '').trim();
-        const bName = String(row[3] || '').trim();
-        const gcName = String(row[5] || '').trim();
-        const vwName = String(row[7] || '').trim();
-        const vwCode = String(row[8] || '').trim();
-        if (dName === selectedDist.name && bName === selectedBlock.name && gcName === selectedGpCity.name && vwName) {
-          villWards.set(`${vwName}_${vwCode}`, { name: vwName, code: vwCode });
-        }
-      });
-      populateSelect(villWardEl, villWards, locTypeEl.value === 'Rural' ? '-- Select Village --' : '-- Select Ward --');
-    });
-
-    function validateCscId() {
-      const val = cscIdEl.value.trim();
-      if (existingCscSet.has(val)) {
-        cscError.textContent = `Duplicate Blocked: CSC ID (${val}) pehle se submit ho chuka hai!`;
-        cscError.classList.remove('hidden');
-        cscIdEl.classList.add('border-red-500', 'bg-red-50');
-        return false;
-      }
-      cscError.classList.add('hidden');
-      cscIdEl.classList.remove('border-red-500', 'bg-red-50');
-      return true;
-    }
-    cscIdEl.addEventListener('input', validateCscId);
-
-    modelEl.addEventListener('change', () => {
-      const model = modelEl.value;
-      serialEl.value = '';
-      serialError.classList.add('hidden');
-      serialEl.classList.remove('border-red-500', 'bg-red-50');
-
-      if (!model) {
-        serialEl.disabled = true;
-        serialEl.classList.add('bg-slate-50');
-        serialEl.placeholder = 'Select Model First';
-        serialHint.textContent = 'Select a device model to see serial number format.';
-        return;
-      }
-
-      serialEl.disabled = false;
-      serialEl.classList.remove('bg-slate-50');
-      serialEl.classList.add('bg-white');
-
-      if (model === 'PAX-D180') {
-        serialEl.maxLength = 8;
-        serialEl.placeholder = 'e.g. 1A234567';
-        serialHint.textContent = 'Rule: 8 chars -> 1st digit (1-9), 2nd Alphabet (A-Z), 3rd to 8th digits (0-9).';
-      } else if (model === 'MOREFUN-MP63') {
-        serialEl.maxLength = 14;
-        serialEl.placeholder = '14 Digits Only';
-        serialHint.textContent = 'Rule: Exactly 14 numeric digits only.';
-      } else if (model === 'EUREKA-Y50') {
-        serialEl.maxLength = 20;
-        serialEl.placeholder = '20 Digits Only';
-        serialHint.textContent = 'Rule: Exactly 20 numeric digits only.';
-      }
-    });
-
-    function validateSerialNumber() {
-      const model = modelEl.value;
-      const val = serialEl.value.trim().toUpperCase();
-      serialEl.value = val;
-
-      if (existingSerialSet.has(val)) {
-        serialError.textContent = `Duplicate Blocked: Serial Number (${val}) pehle se register ho chuka hai!`;
-        serialError.classList.remove('hidden');
-        serialEl.classList.add('border-red-500', 'bg-red-50');
-        return false;
-      }
-
-      let isValid = false;
-      let errMsg = '';
-
-      if (model === 'PAX-D180') {
-        isValid = /^[1-9][A-Z][0-9]{6}$/.test(val);
-        errMsg = 'Invalid PAX-D180 Serial! Must be 8 chars: 1st digit (1-9), 2nd letter (A-Z), followed by 6 digits.';
-      } else if (model === 'MOREFUN-MP63') {
-        isValid = /^[0-9]{14}$/.test(val);
-        errMsg = 'Invalid MOREFUN-MP63 Serial! Must be exactly 14 numeric digits.';
-      } else if (model === 'EUREKA-Y50') {
-        isValid = /^[0-9]{20}$/.test(val);
-        errMsg = 'Invalid EUREKA-Y50 Serial! Must be exactly 20 numeric digits.';
-      }
-
-      if (!isValid) {
-        serialError.textContent = errMsg;
-        serialError.classList.remove('hidden');
-        serialEl.classList.add('border-red-500', 'bg-red-50');
-      } else {
-        serialError.classList.add('hidden');
-        serialEl.classList.remove('border-red-500', 'bg-red-50');
-      }
-      return isValid;
-    }
-    serialEl.addEventListener('input', validateSerialNumber);
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!validateCscId()) { cscIdEl.focus(); return; }
-      if (!validateSerialNumber()) { serialEl.focus(); return; }
-
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Verifying & Saving Data... Please wait';
-
-      const distObj = JSON.parse(distEl.value);
-      const blockObj = JSON.parse(blockEl.value);
-      const gpCityObj = JSON.parse(gpCityEl.value);
-      const villWardObj = JSON.parse(villWardEl.value);
-
-      const cleanCsc = cscIdEl.value.trim();
-      const cleanSerial = serialEl.value.trim().toUpperCase();
-
-      const payload = {
-        locationType: locTypeEl.value,
-        districtName: distObj.name,
-        districtCode: distObj.code,
-        blockName: blockObj.name,
-        blockCode: blockObj.code,
-        gpOrCityName: gpCityObj.name,
-        gpOrCityCode: gpCityObj.code,
-        villageOrWardName: villWardObj.name,
-        villageOrWardCode: villWardObj.code,
-        cscId: cleanCsc,
-        firstName: document.getElementById('firstName').value.trim(),
-        lastName: document.getElementById('lastName').value.trim(),
-        mobile: document.getElementById('mobile').value.trim(),
-        email: document.getElementById('email').value.trim(),
-        centerName: document.getElementById('centerName').value.trim(),
-        centerAddress: document.getElementById('centerAddress').value.trim(),
-        pinCode: document.getElementById('pinCode').value.trim(),
-        deviceModel: modelEl.value,
-        serialNumber: cleanSerial
-      };
-
-      try {
-        const response = await fetch(SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-        const result = await response.json();
-
-        if (result.status === 'success') {
-          alert('Data successfully saved in Google Sheet!');
-          existingCscSet.add(cleanCsc);
-          existingSerialSet.add(cleanSerial);
-          form.reset();
-          resetSelect(distEl, '-- Select District --');
-          resetSelect(blockEl, '-- Select Block --');
-          resetSelect(gpCityEl, '-- Select --');
-          resetSelect(villWardEl, '-- Select --');
-          serialEl.disabled = true;
-        } else if (result.status === 'duplicate') {
-          alert(result.message);
-          if (result.field === 'cscId') {
-            existingCscSet.add(cleanCsc);
-            validateCscId();
-            cscIdEl.focus();
-          } else if (result.field === 'serialNumber') {
-            existingSerialSet.add(cleanSerial);
-            validateSerialNumber();
-            serialEl.focus();
-          }
-        } else {
-          alert('Error: ' + result.message);
-        }
-      } catch (err) {
-        alert('Submission failed! Please check your internet connection.');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit VLE & Device Mapping';
-      }
-    });
-  </script>
-</body>
-</html>
+            <input type="text" id="centerAddress" required placeholder="FULL CENTER ADDRESS"
+              class="w-full border border-slate-300 rounded-lg p-2.5 uppercase">
